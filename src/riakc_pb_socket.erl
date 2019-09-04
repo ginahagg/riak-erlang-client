@@ -474,13 +474,6 @@ stream_list_buckets(Pid, Options) ->
     stream_list_buckets(Pid, <<"default">>, Options).
 
 stream_list_buckets(Pid, Type, Options) ->
-    AllowListing = riakc_utils:get_allow_listing(Options),
-    do_stream_list_buckets(AllowListing, Pid, Type, Options).
-
-do_stream_list_buckets(false, _Pid, _Type, _Options) ->
-    {error, <<"Bucket and key list operations are expensive "
-              "and should not be used in production.">>};
-do_stream_list_buckets(true, Pid, Type, Options) ->
     ST = case proplists:get_value(timeout, Options) of
              undefined -> ?DEFAULT_PB_TIMEOUT;
              T -> T
@@ -490,14 +483,7 @@ do_stream_list_buckets(true, Pid, Type, Options) ->
     Req = #rpblistbucketsreq{timeout=ST, type=Type, stream=true},
     call_infinity(Pid, {req, Req, CT, {ReqId, self()}}).
 
-legacy_list_buckets(Pid, Options) when is_pid(Pid), is_list(Options) ->
-    AllowListing = riakc_utils:get_allow_listing(Options),
-    do_legacy_list_buckets(AllowListing, Pid, Options).
-
-do_legacy_list_buckets(false, _Pid, _Options) ->
-    {error, <<"Bucket and key list operations are expensive "
-              "and should not be used in production.">>};
-do_legacy_list_buckets(true, Pid, Options) ->
+legacy_list_buckets(Pid, Options) ->
     ST = case proplists:get_value(timeout, Options) of
              undefined -> ?DEFAULT_PB_TIMEOUT;
              T -> T
@@ -556,13 +542,6 @@ stream_list_keys(Pid, Bucket, infinity) ->
 stream_list_keys(Pid, Bucket, Timeout) when is_integer(Timeout) ->
     stream_list_keys(Pid, Bucket, [{timeout, Timeout}]);
 stream_list_keys(Pid, Bucket, Options) ->
-    AllowListing = riakc_utils:get_allow_listing(Options),
-    do_stream_list_keys(AllowListing, Pid, Bucket, Options).
-
-do_stream_list_keys(false, _Pid, _Bucket, _Options) ->
-    {error, <<"Bucket and key list operations are expensive "
-              "and should not be used in production.">>};
-do_stream_list_keys(true, Pid, Bucket, Options) ->
     ST = case proplists:get_value(timeout, Options) of
              undefined -> ?DEFAULT_PB_TIMEOUT;
              T -> T
@@ -752,17 +731,6 @@ mapred_stream(Pid, {index,Bucket,Name,StartKey,EndKey}, Query, ClientPid, Timeou
     BinEndKey = list_to_binary(integer_to_list(EndKey)),
     mapred_stream(Pid, {index,Bucket,Name,StartKey,BinEndKey}, Query, ClientPid, Timeout, CallTimeout);
 mapred_stream(Pid, Inputs, Query, ClientPid, Timeout, _CallTimeout) ->
-    AllowListing = riakc_utils:get_allow_listing(),
-    do_mapred_stream(AllowListing, Pid, Inputs, Query, ClientPid, Timeout).
-
-do_mapred_stream(false, _Pid, Bucket, _Query, _ClientPid, _Timeout) when is_binary(Bucket) ->
-    {error, <<"Bucket list operations are expensive "
-              "and should not be used in production.">>};
-do_mapred_stream(false, _Pid, {Type, Bucket}, _Query, _ClientPid, _Timeout)
-  when is_binary(Type), is_binary(Bucket) ->
-    {error, <<"Bucket list operations are expensive "
-              "and should not be used in production.">>};
-do_mapred_stream(_AllowListing, Pid, Inputs, Query, ClientPid, Timeout) ->
     MapRed = [{'inputs', Inputs},
               {'query', Query},
               {'timeout', Timeout}],
@@ -1259,7 +1227,7 @@ fetch_type(Pid, BucketAndType, Key, Options) ->
 
 %% @doc Updates the convergent datatype in Riak with local
 %% modifications stored in the container type.
--spec update_type(pid(), bucket_and_type(), Key::binary()|'undefined', Update::riakc_datatype:update(term())) ->
+-spec update_type(pid(), bucket_and_type(), Key::binary(), Update::riakc_datatype:update(term())) ->
                          ok | {ok, Key::binary()} | {ok, riakc_datatype:datatype()} |
                          {ok, Key::binary(), riakc_datatype:datatype()} | {error, term()}.
 update_type(Pid, BucketAndType, Key, Update) ->
@@ -1268,7 +1236,7 @@ update_type(Pid, BucketAndType, Key, Update) ->
 %% @doc Updates the convergent datatype in Riak with local
 %% modifications stored in the container type, using the given request
 %% options.
--spec update_type(pid(), bucket_and_type(), Key::binary()|'undefined',
+-spec update_type(pid(), bucket_and_type(), Key::binary(),
                   Update::riakc_datatype:update(term()), [proplists:property()]) ->
                          ok | {ok, Key::binary()} | {ok, riakc_datatype:datatype()} |
                          {ok, Key::binary(), riakc_datatype:datatype()} | {error, term()}.
@@ -2413,7 +2381,7 @@ remove_queued_request(Ref, State) ->
 -ifdef(deprecated_19).
 mk_reqid() -> erlang:phash2(crypto:strong_rand_bytes(10)). % only has to be unique per-pid
 -else.
-mk_reqid() -> erlang:phash2(crypto:rand_bytes(10)). % only has to be unique per-pid
+mk_reqid() -> erlang:phash2(crypto:strong_rand_bytes(10)). % only has to be unique per-pid
 -endif.
 
 %% @private
